@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Driver Safety & Distraction Detection</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      font-family: Arial, sans-serif;
+      color: white;
+      overflow: hidden;
+    }
+
+    #scene {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    #road {
+      position: absolute;
+      bottom: 0;
+      width: 200%;
+      height: 800px;
+      animation: moveRoad 6s linear infinite;
+      z-index: 1;
+    }
+
+    @keyframes moveRoad {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    #car {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      width: 500px;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    #status, #direction, #breakSuggestion {
+      position: absolute;
+      left: 10px;
+      font-size: 18px;
+      z-index: 5;
+    }
+
+    #status { top: 10px; }
+    #direction { top: 40px; }
+    #breakSuggestion {
+      top: 70px;
+      color: #FFD700;
+    }
+
+    #startButton, #resetBreaks {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 30px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      font-size: 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    #startButton {
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    #resetBreaks {
+      top: 120px;
+      left: 10px;
+      transform: none;
+      padding: 10px 15px;
+      font-size: 14px;
+      background: #f44336;
+    }
+
+    video { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="scene">
+  <img src="asset/road.png" id="road" alt="Road" />
+  <img src="asset/car1.png" id="car" alt="Car" />
+</div>
+
+<p id="status">Status: Click Start</p>
+<p id="direction">Head Direction: Unknown</p>
+<p id="breakSuggestion">Break Suggestions: 0</p>
+<button id="startButton">Start Simulation</button>
+<button id="resetBreaks">Reset Break Count</button>
+
+<video id="video" autoplay muted playsinline width="640" height="480"></video>
+
+<audio id="bgmusic" src="asset/Travis-Scott-FE-N-(HipHopKit.com).mp3" loop></audio>
+<audio id="beep" src="asset/beep-01a.mp3" loop></audio>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const directionEl = document.getElementById("direction");
+  const breakEl = document.getElementById("breakSuggestion");
+  const video = document.getElementById("video");
+  const startBtn = document.getElementById("startButton");
+  const resetBtn = document.getElementById("resetBreaks");
+  const road = document.getElementById("road");
+  const music = document.getElementById("bgmusic");
+  const beep = document.getElementById("beep");
+
+  let eyesClosedStart = null;
+  let distractedStart = null;
+  let isStopped = false;
+  let stopCount = 0;
+
+  function stopCar(reason) {
+    road.style.animationPlayState = "paused";
+    music.volume = 1;
+    beep.play().catch(console.error);
+    isStopped = true;
+    statusEl.textContent = `Status: Stopped - ${reason}`;
+
+    stopCount++;
+    breakEl.textContent = `Break Suggestions: ${stopCount}`;
+    if (stopCount >= 3) {
+      breakEl.textContent += " 🚨 Take a break!";
+    }
+  }
+
+  function resumeCar() {
+    road.style.animationPlayState = "running";
+    music.volume = 0.2;
+    beep.pause();
+    beep.currentTime = 0;
+    isStopped = false;
+    statusEl.textContent = "Status: Running";
+  }
+
+  resetBtn.addEventListener("click", () => {
+    stopCount = 0;
+    breakEl.textContent = "Break Suggestions: 0";
+  });
+
+  startBtn.addEventListener("click", async () => {
+    startBtn.style.display = "none";
+    music.volume = 0.2;
+    await music.play().catch(console.error);
+    statusEl.textContent = "Status: Running";
+
+    const faceMesh = new FaceMesh({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    faceMesh.onResults(onResults);
+
+    const camera = new Camera(video, {
+      onFrame: async () => await faceMesh.send({ image: video }),
+      width: 640,
+      height: 480
+    });
+
+    camera.start();
+  });
+
+  function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function onResults(results) {
+    if (!results.multiFaceLandmarks.length) return;
+
+    const landmarks = results.multiFaceLandmarks[0];
+    const now = Date.now();
+
+    const leftEye = distance(landmarks[386], landmarks[374]);
+    const rightEye = distance(landmarks[159], landmarks[145]);
+    const avgEyeOpenness = (leftEye + rightEye) / 2;
+    const eyeThreshold = 0.015;
+    const eyesClosed = avgEyeOpenness < eyeThreshold;
+
+    const leftEyePos = landmarks[33];
+    const rightEyePos = landmarks[263];
+    const nose = landmarks[1];
+    const forehead = landmarks[10];
+    const chin = landmarks[152];
+
+    const eyeDx = rightEyePos.x - leftEyePos.x;
+    const eyeDy = rightEyePos.y - leftEyePos.y;
+    const yaw = Math.atan2(eyeDy, eyeDx) * 180 / Math.PI;
+
+    const faceHeight = chin.y - forehead.y;
+    const noseToMid = nose.y - (forehead.y + faceHeight / 2);
+    const pitch = (noseToMid / faceHeight) * 100;
+
+    let direction = "Forward";
+
+    if (yaw > 10) direction = "Looking Left";
+    else if (yaw < -10) direction = "Looking Right";
+    else if (pitch > 10) direction = "Looking Down";
+    else if (pitch < -10) direction = "Looking Up";
+
+    directionEl.textContent = `Head Direction: ${direction}`;
+    const isDistracted = direction !== "Forward";
+
+    if (eyesClosed) {
+      if (!eyesClosedStart) eyesClosedStart = now;
+      if ((now - eyesClosedStart) >= 3000 && !isStopped) {
+        stopCar("Eyes Closed");
+      }
+    } else {
+      eyesClosedStart = null;
+    }
+
+    if (isDistracted) {
+      if (!distractedStart) distractedStart = now;
+      if ((now - distractedStart) >= 2000 && !isStopped) {
+        stopCar(direction);
+      }
+    } else {
+      distractedStart = null;
+    }
+
+    const upperLip = landmarks[13];
+    const lowerLip = landmarks[14];
+    const mouthOpen = distance(upperLip, lowerLip);
+    const mouthThreshold = 0.05;
+
+    if (mouthOpen > mouthThreshold) {
+      if (!window.yawnStart) window.yawnStart = now;
+      if ((now - window.yawnStart) > 2000 && !isStopped) {
+        stopCar("Yawning Detected");
+      }
+    } else {
+      window.yawnStart = null;
+    }
+
+    if (!eyesClosed && !isDistracted && window.yawnStart == null && isStopped) {
+      resumeCar();
+    }
+  }
+</script>
+
+</body>
+</html>

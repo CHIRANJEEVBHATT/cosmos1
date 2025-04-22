@@ -1,0 +1,95 @@
+body {
+  margin: 0;
+  background: #0a0a0a;
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+#scene {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+#road {
+  position: absolute;
+  bottom: 0;
+  width: 200%;
+  height: 800px;
+  z-index: 1;
+  animation: moveRoad 6s linear infinite;
+  animation-play-state: running;
+}
+
+@keyframes moveRoad {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.tree {
+  position: absolute;
+  bottom: 0;
+  width: 150px;
+  z-index: 0;
+  background-color: wheat;
+  animation: moveTree 10s linear infinite;
+  animation-play-state: running;
+}
+
+@keyframes moveTree {
+  0% {
+    transform: translateX(120vw);
+  }
+  100% {
+    transform: translateX(-20vw);
+  }
+}
+
+#car {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  width: 500px;
+  transform: translateX(-50%);
+  z-index: 2;
+  animation: carBounce 0.8s ease-in-out infinite;
+  animation-play-state: running;
+}
+
+@keyframes carBounce {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-8px);
+  }
+}
+
+#status {
+  color: white;
+  font-size: 20px;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+}
+
+#startButton {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 15px 30px;
+  font-size: 18px;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  background: #4CAF50;
+  color: white;
+  z-index: 10;
+}
