@@ -1,5 +1,5 @@
 Driver Safety & Distraction Detection
-This project is a browser-based driver monitoring simulation that uses MediaPipe Face Mesh and TensorFlow.js to detect signs of driver fatigue or distraction. It analyzes eye closure, head direction, and yawning to simulate a smart safety assistant in a driving environment.
+This is my hackathon project based on  driver monitoring simulation that uses MediaPipe Face Mesh and TensorFlow.js to detect signs of driver fatigue or distraction. It analyzes eye closure, head direction, and yawning to simulate a smart safety assistant in a driving environment.
 
 Features
 Real-Time Face Tracking: Uses MediaPipe Face Mesh for detecting facial landmarks in live video.
